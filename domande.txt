@@ -5,8 +5,9 @@ Domande:
  - Ci sono righe con tutti gli attributi uguali (circa 1000) e righe con ID uguali (circa 9000)
  - Può aver senso lasciare 'Residence' come unica colonna senza separarla?
  - I dati sono single_table, che senso ha fare multi_table e sequential_tabel?
- - Possiamo levare la colonna 'linked_search__key'?
+ - Possiamo levare la colonna 'linked_search__key'? 
  - Dobbiamo definire noi delle metriche di valutazione del dataset generato o usare quelle standard di SDV?
+ - 'Recruitment Request' ha solo 422 valori non-nulli, di cui 354 diversi, possiamo dropparla?
 
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------
