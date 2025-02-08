@@ -1,5 +1,5 @@
 import pandas as pd
-from sdv.constraints import create_custom_constraint_class
+from sdv.constraints import create_custom_constraint_class # type: ignore
 
 
 def is_valid_YearsHired(column_names, data):
