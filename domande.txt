@@ -17,3 +17,6 @@ Cose da mettere a posto:
  - la colonna 'Last Role' genera stringhe a caso
  - imporre un constraint che tenga conto del fatto che uno di 20 anni non può avere 10 anni di esperienza lavorativa
  - 'Years of Recruitment' deve essere nan se 'Candidate state' non è 'hired', se non è nan, deve essere minore/uguale a 'Year of insertion'
+
+
+ Formulare i vincoli e poi provare a implementare un constrint checker, vedendo quanto sdv tende a violare i vincoli.
