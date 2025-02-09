@@ -153,3 +153,22 @@ def plot_distributions(data, synthetic_data, metadata, columns_to_plot):
             plot_type='bar'
         )
         fig.show()
+
+
+# For the moment can only generate one column at a time, like 20% Female and 30% Hired, can't generate 20% Hired Female
+def polarized_generation(synthesizer, polarization_dict, num_rows=1000):
+    synthetic_data = synthesizer.sample(num_rows=num_rows*5)
+
+    reference_data = pd.DataFrame()
+    for key, value in polarization_dict.items():
+        n_elem = (num_rows * value['Percentage']) // 100
+        fill_values = synthetic_data[synthetic_data[key] != value['Value']].head(num_rows-n_elem)
+        polarized_rows = pd.DataFrame({key: [value['Value']] * n_elem})
+        new_rows = pd.concat([polarized_rows, fill_values[key]]).reset_index(drop=True)
+        reference_data = pd.concat([reference_data, new_rows], axis=1).reset_index(drop=True)
+
+    polarized_synthetic_data = synthesizer.sample_remaining_columns(
+        known_columns=reference_data,
+        max_tries_per_batch=500
+    )
+    return polarized_synthetic_data

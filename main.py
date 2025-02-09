@@ -118,6 +118,11 @@ if __name__ == '__main__':
 
     # Generate data with constraint
     synthesizer.fit(data)
+    polarization_dict = {
+        "Sex": {"Value": "Female", "Percentage": 50},
+        "Candidate State": {"Value": "Hired", "Percentage": 20},
+    }
+    polarized_generation(synthesizer, polarization_dict)
     synthetic_data_constraint = synthesizer.sample(num_rows=1000)
 
     # Check inconsistencies in synthetic data with constraint
