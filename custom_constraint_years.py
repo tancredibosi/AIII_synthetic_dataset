@@ -34,11 +34,13 @@ def is_valid_YearsHired(column_names, data):
     
     return validity
 
+
 CustomYearsHired = create_custom_constraint_class(
     is_valid_fn=is_valid_YearsHired,
     # transform_fn=transform, # optional
     # reverse_transform_fn=reverse_transform # optional
 )
+
 
 def is_valid_AgeExperience(column_names, data):
     """
@@ -69,6 +71,7 @@ def is_valid_AgeExperience(column_names, data):
     validity[age_20_25_mask & very_high_exp_mask] = False
     
     return validity
+
 
 CustomAgeExperience = create_custom_constraint_class(
     is_valid_fn=is_valid_AgeExperience

@@ -4,6 +4,8 @@ import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import AgglomerativeClustering
 from collections import Counter
+import matplotlib.pyplot as plt
+from sdv.evaluation.single_table import get_column_plot
 
 
 def organize_data(data):
@@ -139,3 +141,15 @@ def map_to_cluster_name(value, unique_values, clusters, cluster_names):
         cluster_id = clusters[unique_values.index(value)]
         return cluster_names.get(cluster_id, value)
     return value
+
+
+def plot_distributions(data, synthetic_data, metadata, columns_to_plot):
+    for col in columns_to_plot:
+        fig = get_column_plot(
+            real_data=data,
+            synthetic_data=synthetic_data,
+            metadata=metadata,
+            column_name=col,
+            plot_type='bar'
+        )
+        fig.show()

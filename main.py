@@ -1,6 +1,6 @@
 import pandas as pd
 from sdv.metadata import Metadata
-from sdv.single_table import CTGANSynthesizer, GaussianCopulaSynthesizer, CopulaGANSynthesizer
+from sdv.single_table import GaussianCopulaSynthesizer, TVAESynthesizer
 from colorama import Fore, Style
 from utils import *
 
@@ -114,7 +114,6 @@ if __name__ == '__main__':
         recruitment_constraint,
         residence_constraint,
         YearsHired_constraint,
-        AgeExperience_constraint
     ])
 
     # Generate data with constraint
@@ -126,4 +125,7 @@ if __name__ == '__main__':
     print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
     violating_rows = synthetic_data_constraint[inconsistencies_flag]
 
+    #nan_cols = list(data.isna().sum().sort_values(ascending=False).index)[:28]
+    #plot_distributions(data, synthetic_data_constraint, metadata, nan_cols)
+    
     print()
