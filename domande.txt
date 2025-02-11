@@ -19,4 +19,13 @@ Cose da mettere a posto:
  - 'Years of Recruitment' deve essere nan se 'Candidate state' non è 'hired', se non è nan, deve essere minore/uguale a 'Year of insertion'
 
 
- Formulare i vincoli e poi provare a implementare un constrint checker, vedendo quanto sdv tende a violare i vincoli.
+ Formulare i vincoli e poi provare a implementare un constraint checker, vedendo quanto sdv tende a violare i vincoli.
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+COSE DA PROVARE (POST CHIAMATA):
+ - Capire come funziona il synthetizer
+ - Provare le diverse distribuzioni come parametri di input al synthetizer
+ - Trovare altri constraints da implementare
+ - Valutare le colonne con molti nan da droppare e scrivere mail a borghesi
