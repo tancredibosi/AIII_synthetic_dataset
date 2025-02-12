@@ -56,21 +56,21 @@ if __name__ == '__main__':
         column_name='Region',
         sdtype='categorical')
     metadata.validate()
-
+    
     # Create syntetizer and generate new data
     synthesizer = GaussianCopulaSynthesizer(
         metadata,
         locales='it_IT',
         #    verbose=True
     )
-    """synthesizer.auto_assign_transformers(data)
+    synthesizer.auto_assign_transformers(data)
     synthesizer.fit(data)
     synthetic_data = synthesizer.sample(num_rows=1000)
 
     # Check inconsistencies in synthetic data
     inconsistencies_flag = synthetic_data.apply(check_constraint, axis=1)
     print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
-    violating_rows = synthetic_data[inconsistencies_flag]"""
+    violating_rows = synthetic_data[inconsistencies_flag]
 
     # load the constraint from the file
     synthesizer.load_custom_constraint_classes(
@@ -107,6 +107,12 @@ if __name__ == '__main__':
             'column_names': ['City', 'Province', 'Region']
         }
     }
+    event_constraint = {
+        'constraint_class': 'FixedCombinations',
+        'constraint_parameters': {
+            'column_names': ['event_type__val', 'event_feedback']
+        }
+    }
 
     # Add constraint to the synthetizer
     synthesizer.add_constraints(constraints=[
@@ -114,10 +120,12 @@ if __name__ == '__main__':
         recruitment_constraint,
         residence_constraint,
         YearsHired_constraint,
+        event_constraint
     ])
-
+    
     # Generate data with constraint
     synthesizer.fit(data)
+
     polarization_dict = {
         "Sex": {"Value": "Female", "Percentage": 50},
         "Candidate State": {"Value": "Hired", "Percentage": 20},
@@ -129,8 +137,14 @@ if __name__ == '__main__':
     inconsistencies_flag = synthetic_data_constraint.apply(check_constraint, axis=1)
     print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
     violating_rows = synthetic_data_constraint[inconsistencies_flag]
-
+    
     #nan_cols = list(data.isna().sum().sort_values(ascending=False).index)[:28]
     #plot_distributions(data, synthetic_data_constraint, metadata, nan_cols)
     
+    # Comparison between GaussianCopulaSynthesizer and TVAESynthesizer
+    s1 = GaussianCopulaSynthesizer(metadata=metadata, locales='it_IT')
+    s2 = TVAESynthesizer(metadata=metadata, epochs=2)
+
+    compare_synthetizer(s1, s2, metadata, data, num_rows=1000)
+
     print()

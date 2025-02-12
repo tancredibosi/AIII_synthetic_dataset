@@ -6,6 +6,7 @@ from sklearn.cluster import AgglomerativeClustering
 from collections import Counter
 import matplotlib.pyplot as plt
 from sdv.evaluation.single_table import get_column_plot
+from sdv.evaluation.single_table import run_diagnostic, evaluate_quality
 
 
 def organize_data(data):
@@ -43,7 +44,7 @@ def organize_data(data):
     data = group_ids(data)
 
     # Drop useless columns
-    data = data.drop(columns=['linked_search__key', 'Years Experience.1', 'Study Area.1', 'Residence'])
+    data = data.drop(columns=['linked_search__key', 'Years Experience.1', 'Study Area.1', 'Residence', 'Recruitment Request'])
 
     return data
 
@@ -172,3 +173,70 @@ def polarized_generation(synthesizer, polarization_dict, num_rows=1000):
         max_tries_per_batch=500
     )
     return polarized_synthetic_data
+
+def plot_comparison(dict1, dict2, 
+                    title="Comparison of Dictionaries", 
+                    dict1_name="Dict 1", 
+                    dict2_name="Dict 2"):
+    # Set up the data
+    labels = list(dict1.keys())
+    dict1_values = list(dict1.values())
+    dict2_values = list(dict2.values())
+
+    # Set up the bar positions
+    x = np.arange(len(labels))
+    width = 0.35  # Width of the bars
+
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(10, 6))
+    rects1 = ax.bar(x - width/2, dict1_values, width, label=dict1_name)
+    rects2 = ax.bar(x + width/2, dict2_values, width, label=dict2_name)
+
+    # Customize the plot
+    ax.set_ylabel('Scores')
+    ax.set_title(title)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.legend()
+
+    # Add value labels on top of each bar
+    def autolabel(rects):
+        for rect in rects:
+            height = rect.get_height()
+            ax.annotate(f'{height:.2f}',
+                       xy=(rect.get_x() + rect.get_width() / 2, height),
+                       xytext=(0, 3),  # 3 points vertical offset
+                       textcoords="offset points",
+                       ha='center', va='bottom')
+
+    autolabel(rects1)
+    autolabel(rects2)
+
+    plt.tight_layout()
+    plt.show()
+
+def compare_synthetizer(s1, s2, metadata, data, num_rows=1000):
+    s1.fit(data)
+    s2.fit(data)
+
+    synthetic_data_s1 = s1.sample(num_rows=num_rows)
+    synthetic_data_s2 = s2.sample(num_rows=num_rows)
+
+    diagnostic_report_s1 = run_diagnostic(data, synthetic_data_s1, metadata, verbose=False)
+    diagnostic_report_s1 = diagnostic_report_s1.get_properties()
+    drs1_dict = dict(zip(diagnostic_report_s1['Property'], diagnostic_report_s1['Score']))
+
+    quality_report_s1 = evaluate_quality(data, synthetic_data_s1, metadata, verbose=False)
+    quality_report_s1 = quality_report_s1.get_properties()
+    dqs1_dict = dict(zip(quality_report_s1['Property'], quality_report_s1['Score']))
+    
+    diagnostic_report_s2 = run_diagnostic(data, synthetic_data_s2, metadata, verbose=False)
+    diagnostic_report_s2 = diagnostic_report_s2.get_properties()
+    drs2_dict = dict(zip(diagnostic_report_s2['Property'], diagnostic_report_s2['Score']))
+
+    quality_report_s2 = evaluate_quality(data, synthetic_data_s2, metadata, verbose=False)
+    quality_report_s2 = quality_report_s2.get_properties()
+    dqs2_dict = dict(zip(quality_report_s2['Property'], quality_report_s2['Score']))
+
+    plot_comparison(drs1_dict, drs2_dict, title="Diagnostic Scores Comparison", dict1_name="GaussianCopulaSynthesizer", dict2_name="TVAESynthesizer")
+    plot_comparison(dqs1_dict, dqs2_dict, title="Quality Scores Comparison", dict1_name="GaussianCopulaSynthesizer", dict2_name="TVAESynthesizer")

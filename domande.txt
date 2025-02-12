@@ -28,4 +28,4 @@ COSE DA PROVARE (POST CHIAMATA):
  - Capire come funziona il synthetizer
  - Provare le diverse distribuzioni come parametri di input al synthetizer
  - Trovare altri constraints da implementare
- - Valutare le colonne con molti nan da droppare e scrivere mail a borghesi
+ 
