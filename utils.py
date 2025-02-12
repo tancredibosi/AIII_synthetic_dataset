@@ -174,69 +174,80 @@ def polarized_generation(synthesizer, polarization_dict, num_rows=1000):
     )
     return polarized_synthetic_data
 
-def plot_comparison(dict1, dict2, 
-                    title="Comparison of Dictionaries", 
-                    dict1_name="Dict 1", 
-                    dict2_name="Dict 2"):
-    # Set up the data
-    labels = list(dict1.keys())
-    dict1_values = list(dict1.values())
-    dict2_values = list(dict2.values())
-
-    # Set up the bar positions
-    x = np.arange(len(labels))
-    width = 0.35  # Width of the bars
-
-    # Create the plot
-    fig, ax = plt.subplots(figsize=(10, 6))
-    rects1 = ax.bar(x - width/2, dict1_values, width, label=dict1_name)
-    rects2 = ax.bar(x + width/2, dict2_values, width, label=dict2_name)
-
-    # Customize the plot
-    ax.set_ylabel('Scores')
-    ax.set_title(title)
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels)
-    ax.legend()
-
-    # Add value labels on top of each bar
-    def autolabel(rects):
+def plot_comparison_subplots(drs1_dict, drs2_dict, dqs1_dict, dqs2_dict, 
+                             title1="Diagnostic Scores Comparison", 
+                             title2="Quality Scores Comparison", 
+                             dict1_name="Synthesizer 1", 
+                             dict2_name="Synthesizer 2"):
+    fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+    
+    # Plot Diagnostic Scores
+    labels1 = list(drs1_dict.keys())
+    drs1_values = list(drs1_dict.values())
+    drs2_values = list(drs2_dict.values())
+    x1 = np.arange(len(labels1))
+    width = 0.35
+    
+    rects1a = axes[0].bar(x1 - width/2, drs1_values, width, label=dict1_name)
+    rects1b = axes[0].bar(x1 + width/2, drs2_values, width, label=dict2_name)
+    
+    axes[0].set_ylabel('Scores')
+    axes[0].set_title(title1)
+    axes[0].set_xticks(x1)
+    axes[0].set_xticklabels(labels1, rotation=45, ha='right')
+    axes[0].legend()
+    
+    # Plot Quality Scores
+    labels2 = list(dqs1_dict.keys())
+    dqs1_values = list(dqs1_dict.values())
+    dqs2_values = list(dqs2_dict.values())
+    x2 = np.arange(len(labels2))
+    
+    rects2a = axes[1].bar(x2 - width/2, dqs1_values, width, label=dict1_name)
+    rects2b = axes[1].bar(x2 + width/2, dqs2_values, width, label=dict2_name)
+    
+    axes[1].set_ylabel('Scores')
+    axes[1].set_title(title2)
+    axes[1].set_xticks(x2)
+    axes[1].set_xticklabels(labels2, rotation=45, ha='right')
+    axes[1].legend()
+    
+    def autolabel(rects, ax):
         for rect in rects:
             height = rect.get_height()
             ax.annotate(f'{height:.2f}',
-                       xy=(rect.get_x() + rect.get_width() / 2, height),
-                       xytext=(0, 3),  # 3 points vertical offset
-                       textcoords="offset points",
-                       ha='center', va='bottom')
-
-    autolabel(rects1)
-    autolabel(rects2)
-
+                        xy=(rect.get_x() + rect.get_width() / 2, height),
+                        xytext=(0, 3),
+                        textcoords="offset points",
+                        ha='center', va='bottom')
+    
+    autolabel(rects1a, axes[0])
+    autolabel(rects1b, axes[0])
+    autolabel(rects2a, axes[1])
+    autolabel(rects2b, axes[1])
+    
     plt.tight_layout()
     plt.show()
 
-def compare_synthetizer(s1, s2, metadata, data, num_rows=1000):
+def compare_synthesizer(s1, s2, metadata, data, num_rows=1000):
     s1.fit(data)
     s2.fit(data)
-
+    
     synthetic_data_s1 = s1.sample(num_rows=num_rows)
     synthetic_data_s2 = s2.sample(num_rows=num_rows)
-
+    
     diagnostic_report_s1 = run_diagnostic(data, synthetic_data_s1, metadata, verbose=False)
-    diagnostic_report_s1 = diagnostic_report_s1.get_properties()
-    drs1_dict = dict(zip(diagnostic_report_s1['Property'], diagnostic_report_s1['Score']))
-
+    drs1_dict = dict(zip(diagnostic_report_s1.get_properties()['Property'], diagnostic_report_s1.get_properties()['Score']))
+    
     quality_report_s1 = evaluate_quality(data, synthetic_data_s1, metadata, verbose=False)
-    quality_report_s1 = quality_report_s1.get_properties()
-    dqs1_dict = dict(zip(quality_report_s1['Property'], quality_report_s1['Score']))
+    dqs1_dict = dict(zip(quality_report_s1.get_properties()['Property'], quality_report_s1.get_properties()['Score']))
     
     diagnostic_report_s2 = run_diagnostic(data, synthetic_data_s2, metadata, verbose=False)
-    diagnostic_report_s2 = diagnostic_report_s2.get_properties()
-    drs2_dict = dict(zip(diagnostic_report_s2['Property'], diagnostic_report_s2['Score']))
-
+    drs2_dict = dict(zip(diagnostic_report_s2.get_properties()['Property'], diagnostic_report_s2.get_properties()['Score']))
+    
     quality_report_s2 = evaluate_quality(data, synthetic_data_s2, metadata, verbose=False)
-    quality_report_s2 = quality_report_s2.get_properties()
-    dqs2_dict = dict(zip(quality_report_s2['Property'], quality_report_s2['Score']))
-
-    plot_comparison(drs1_dict, drs2_dict, title="Diagnostic Scores Comparison", dict1_name="GaussianCopulaSynthesizer", dict2_name="TVAESynthesizer")
-    plot_comparison(dqs1_dict, dqs2_dict, title="Quality Scores Comparison", dict1_name="GaussianCopulaSynthesizer", dict2_name="TVAESynthesizer")
+    dqs2_dict = dict(zip(quality_report_s2.get_properties()['Property'], quality_report_s2.get_properties()['Score']))
+    
+    plot_comparison_subplots(drs1_dict, drs2_dict, dqs1_dict, dqs2_dict, 
+                             dict1_name="GaussianCopulaSynthesizer", 
+                             dict2_name="TVAESynthesizer")

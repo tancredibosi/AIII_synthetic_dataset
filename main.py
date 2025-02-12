@@ -56,7 +56,7 @@ if __name__ == '__main__':
         column_name='Region',
         sdtype='categorical')
     metadata.validate()
-    
+    '''
     # Create syntetizer and generate new data
     synthesizer = GaussianCopulaSynthesizer(
         metadata,
@@ -140,11 +140,11 @@ if __name__ == '__main__':
     
     #nan_cols = list(data.isna().sum().sort_values(ascending=False).index)[:28]
     #plot_distributions(data, synthetic_data_constraint, metadata, nan_cols)
-    
+    '''
     # Comparison between GaussianCopulaSynthesizer and TVAESynthesizer
     s1 = GaussianCopulaSynthesizer(metadata=metadata, locales='it_IT')
     s2 = TVAESynthesizer(metadata=metadata, epochs=2)
 
-    compare_synthetizer(s1, s2, metadata, data, num_rows=1000)
+    compare_synthesizer(s1, s2, metadata, data, num_rows=1000)
 
     print()
