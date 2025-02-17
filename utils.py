@@ -229,6 +229,7 @@ def plot_comparison_subplots(drs1_dict, drs2_dict, dqs1_dict, dqs2_dict,
     plt.tight_layout()
     plt.show()
 
+
 def compare_synthesizer(s1, s2, metadata, data, num_rows=1000):
     s1.fit(data)
     s2.fit(data)
@@ -249,5 +250,5 @@ def compare_synthesizer(s1, s2, metadata, data, num_rows=1000):
     dqs2_dict = dict(zip(quality_report_s2.get_properties()['Property'], quality_report_s2.get_properties()['Score']))
     
     plot_comparison_subplots(drs1_dict, drs2_dict, dqs1_dict, dqs2_dict, 
-                             dict1_name="GaussianCopulaSynthesizer", 
-                             dict2_name="TVAESynthesizer")
+                             dict1_name=f"{s1.__class__.__name__}",
+                             dict2_name=f"{s2.__class__.__name__}")
