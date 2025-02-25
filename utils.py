@@ -1,12 +1,14 @@
 import pandas as pd
 import numpy as np
 import re
+from colorama import Fore, Style
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import AgglomerativeClustering
 from collections import Counter
 import matplotlib.pyplot as plt
 from sdv.evaluation.single_table import get_column_plot
 from sdv.evaluation.single_table import run_diagnostic, evaluate_quality
+from sdv.sampling import Condition
 
 
 def organize_data(data):
@@ -156,23 +158,117 @@ def plot_distributions(data, synthetic_data, metadata, columns_to_plot):
         fig.show()
 
 
-# For the moment can only generate one column at a time, like 20% Female and 30% Hired, can't generate 20% Hired Female
-def polarized_generation(synthesizer, polarization_dict, num_rows=1000):
+def polarized_generation_from_conditions(synthesizer, polarization_list, num_rows=1000):
+    # TODO: change this generation with something more elegant
+    synthetic_data = synthesizer.sample(num_rows=num_rows * 5)
+    filtered_synthetic_data = filter_dataframe(synthetic_data, polarization_list)
+
+    conditions = []
+    tot_rows = 0
+    for sublist in polarization_list:
+        n_elem = (num_rows * sublist[0]['Percentage']) // 100
+        tot_rows += n_elem
+        prev_percentage = None
+        col_values = {}
+        for el in sublist:
+            if prev_percentage and prev_percentage != el['Percentage']:
+                raise ValueError("Error: Mismatched percentages")
+            col_values[el['Field']] = el['Value']
+
+        conditions.append(
+            Condition(
+                num_rows=n_elem,
+                column_values=col_values
+            )
+        )
+
+    polarized_synthetic_data = synthesizer.sample_from_conditions(
+        conditions=conditions,
+    )
+    fill_values = filtered_synthetic_data.sample(n=num_rows-tot_rows)
+    final_data = pd.concat([polarized_synthetic_data, fill_values]).reset_index(drop=True)
+    return final_data
+
+
+def polarized_generation_from_columns(synthesizer, polarization_list, num_rows=1000):
+    # TODO: change this generation with something more elegant
     synthetic_data = synthesizer.sample(num_rows=num_rows*5)
 
     reference_data = pd.DataFrame()
-    for key, value in polarization_dict.items():
-        n_elem = (num_rows * value['Percentage']) // 100
-        fill_values = synthetic_data[synthetic_data[key] != value['Value']].head(num_rows-n_elem)
-        polarized_rows = pd.DataFrame({key: [value['Value']] * n_elem})
-        new_rows = pd.concat([polarized_rows, fill_values[key]]).reset_index(drop=True)
+    for sublist in polarization_list:
+        prev_percentage = None
+        exclude_conditions = {}
+        new_rows = pd.DataFrame()
+        for el in sublist:
+            if prev_percentage and prev_percentage != el['Percentage']:
+                raise ValueError("Error: Mismatched percentages")
+
+            exclude_conditions[el['Field']] = el['Value']
+            n_elem = (num_rows * el['Percentage']) // 100
+            polarized_rows = pd.DataFrame({el['Field']: [el['Value']] * n_elem})
+            new_rows = pd.concat([new_rows, polarized_rows], axis=1).reset_index(drop=True)
+            prev_percentage = el['Percentage']
+
+        mask = ~synthetic_data.apply(lambda row: all(row[col] == val for col, val in exclude_conditions.items()), axis=1)
+        fill_values = synthetic_data[mask].sample(n=num_rows-n_elem)
+        new_rows = pd.concat([new_rows, fill_values[new_rows.columns]]).reset_index(drop=True)
         reference_data = pd.concat([reference_data, new_rows], axis=1).reset_index(drop=True)
+        reference_data = reference_data.sample(frac=1).reset_index(drop=True)
 
     polarized_synthetic_data = synthesizer.sample_remaining_columns(
         known_columns=reference_data,
-        max_tries_per_batch=500
+        max_tries_per_batch=500,
+        batch_size=1024,
     )
     return polarized_synthetic_data
+
+
+def check_distribution_constraints(df, constraints_list):
+    total_rows = len(df)
+    if total_rows == 0:
+        return False
+
+    for constraint_group in constraints_list:
+        filtered_df = df.copy()
+
+        for condition in constraint_group:
+            field, value = condition["Field"], condition["Value"]
+            filtered_df = filtered_df[filtered_df[field] == value]
+
+        actual_count = len(filtered_df)
+        actual_percentage = (actual_count / total_rows) * 100
+        expected_percentage = constraint_group[0]["Percentage"]
+        expected_count = round((expected_percentage / 100) * total_rows)
+
+        if round(actual_percentage, 2) != round(expected_percentage, 2):
+            print(f"{Fore.RED}Distribution of polarization not respected{Style.RESET_ALL}")
+            print(f"Condition: {constraint_group}")
+            print(f"Actual Count: {actual_count}, Expected Count: {expected_count}")
+            print(f"Actual Percentage: {actual_percentage}%, Expected Percentage: {expected_percentage}%")
+            return False  # Constraint is not met
+
+    print(f"{Fore.GREEN}Distribution of polarization respected{Style.RESET_ALL}")
+    return True  # All constraints are satisfied
+
+
+def filter_dataframe(df, polarization_list):
+    # Create an initial mask of all False (i.e., no rows are removed initially)
+    mask_to_remove = pd.Series(False, index=df.index)
+
+    for condition_set in polarization_list:
+        # Start with a mask of all True for the given condition set
+        condition_mask = pd.Series(True, index=df.index)
+
+        for condition in condition_set:
+            field, value = condition["Field"], condition["Value"]
+            condition_mask &= (df[field] == value)
+
+        # Accumulate rows to remove using OR
+        mask_to_remove |= condition_mask
+
+    # Filter out rows that match the conditions
+    return df[~mask_to_remove]
+
 
 def plot_comparison_subplots(drs1_dict, drs2_dict, dqs1_dict, dqs2_dict, 
                              title1="Diagnostic Scores Comparison", 
@@ -252,3 +348,16 @@ def compare_synthesizer(s1, s2, metadata, data, num_rows=1000):
     plot_comparison_subplots(drs1_dict, drs2_dict, dqs1_dict, dqs2_dict, 
                              dict1_name=f"{s1.__class__.__name__}",
                              dict2_name=f"{s2.__class__.__name__}")
+
+
+def cluster_tag(data):
+    # Supponiamo che unique_last_roles e unique_tag siano liste estratte dai dati
+    unique_last_roles = data['Last Role'].dropna().unique().tolist()
+    unique_tag = data['TAG'].dropna().unique().tolist()
+    # Clusterizzazione e assegnazione dei nomi per Last Role
+    clusters_last_roles, cluster_names_last_roles = cluster_and_map_roles(unique_last_roles)
+    clusters_tags, cluster_names_tags = cluster_and_map_roles(unique_tag)
+    data['Last Role'] = data['Last Role'].apply(
+        lambda role: map_to_cluster_name(role, unique_last_roles, clusters_last_roles, cluster_names_last_roles))
+    data['TAG'] = data['TAG'].apply(lambda tag: map_to_cluster_name(tag, unique_tag, clusters_tags, cluster_names_tags))
+    return data

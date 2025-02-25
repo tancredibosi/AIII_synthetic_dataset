@@ -4,38 +4,8 @@ from sdv.single_table import GaussianCopulaSynthesizer, TVAESynthesizer
 from colorama import Fore, Style
 from utils import *
 
-if __name__ == '__main__':
-    # Import data and clean
-    file_path = 'Dataset_2.0_Akkodis.xlsx'
-    # Import the dataset into a pandas DataFrame
-    original_data = pd.read_excel(file_path)
-    data = organize_data(original_data)
 
-    # Clean data from inconsistencies
-    invalid_mask = (
-            ((data['Age Range'] == '< 20 years') &
-             (data['Years Experience'].isin(['[+10]', '[7-10]', '[5-7]', '[3-5]']))) |
-            ((data['Age Range'] == '20 - 25 years') &
-             (data['Years Experience'] == '[+10]'))
-    )
-    # Remove invalid rows
-    data = data[~invalid_mask].copy()
-
-    # Supponiamo che unique_last_roles e unique_tag siano liste estratte dai dati
-    unique_last_roles = data['Last Role'].dropna().unique().tolist()
-    unique_tag = data['TAG'].dropna().unique().tolist()
-    # Clusterizzazione e assegnazione dei nomi per Last Role
-    clusters_last_roles, cluster_names_last_roles = cluster_and_map_roles(unique_last_roles)
-    clusters_tags, cluster_names_tags = cluster_and_map_roles(unique_tag)
-    data['Last Role'] = data['Last Role'].apply(
-        lambda role: map_to_cluster_name(role, unique_last_roles, clusters_last_roles, cluster_names_last_roles))
-    data['TAG'] = data['TAG'].apply(lambda tag: map_to_cluster_name(tag, unique_tag, clusters_tags, cluster_names_tags))
-
-    # Check inconsistencies
-    inconsistencies_flag = data.apply(check_constraint, axis=1)
-    print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
-    violating_rows = data[inconsistencies_flag]
-
+def get_metadata(data):
     # Set up metadata
     metadata = Metadata.detect_from_dataframe(data=data)
     # Set column Candidate State to categorical
@@ -56,49 +26,31 @@ if __name__ == '__main__':
         column_name='Region',
         sdtype='categorical')
     metadata.validate()
-    
-    # Create syntetizer and generate new data
-    synthesizer = GaussianCopulaSynthesizer(
-        metadata,
-        locales='it_IT',
-        #    verbose=True
-    )
-    synthesizer.auto_assign_transformers(data)
-    synthesizer.fit(data)
-    synthetic_data = synthesizer.sample(num_rows=1000)
+    return metadata
 
-    # Check inconsistencies in synthetic data
-    inconsistencies_flag = synthetic_data.apply(check_constraint, axis=1)
-    print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
-    violating_rows = synthetic_data[inconsistencies_flag]
 
+def set_constraint(synthesizer):
     # load the constraint from the file
     synthesizer.load_custom_constraint_classes(
         filepath='custom_constraint_years.py',
-        class_names=['CustomYearsHired', 'CustomAgeExperience']
+        class_names=['CustomYearsHired']
     )
-    YearsHired_constraint = {
+    years_hired_constraint = {
         'constraint_class': 'CustomYearsHired',
         'constraint_parameters': {
             'column_names': ['Candidate State', 'Year of insertion', 'Year of Recruitment']
-        }
-    }
-    AgeExperience_constraint = {
-        'constraint_class': 'CustomAgeExperience',
-        'constraint_parameters': {
-            'column_names': ['Age Range', 'Years Experience']
-        }
-    }
-    experience_age_constraint = {
-        'constraint_class': 'FixedCombinations',
-        'constraint_parameters': {
-            'column_names': ['Age Range', 'Years Experience']
         }
     }
     recruitment_constraint = {
         'constraint_class': 'FixedCombinations',
         'constraint_parameters': {
             'column_names': ['Candidate State', 'Year of Recruitment']
+        }
+    }
+    experience_age_constraint = {
+        'constraint_class': 'FixedCombinations',
+        'constraint_parameters': {
+            'column_names': ['Age Range', 'Years Experience']
         }
     }
     residence_constraint = {
@@ -116,35 +68,80 @@ if __name__ == '__main__':
 
     # Add constraint to the synthetizer
     synthesizer.add_constraints(constraints=[
-        experience_age_constraint,
+        years_hired_constraint,
         recruitment_constraint,
+        experience_age_constraint,
         residence_constraint,
-        YearsHired_constraint,
         event_constraint
     ])
-    
+    return synthesizer
+
+
+if __name__ == '__main__':
+    # Import data and clean
+    file_path = 'Dataset_2.0_Akkodis.xlsx'
+    # Import the dataset into a pandas DataFrame
+    original_data = pd.read_excel(file_path)
+    data = organize_data(original_data)
+
+    # Clean data from inconsistencies
+    invalid_mask = (
+            ((data['Age Range'] == '< 20 years') &
+             (data['Years Experience'].isin(['[+10]', '[7-10]', '[5-7]', '[3-5]']))) |
+            ((data['Age Range'] == '20 - 25 years') &
+             (data['Years Experience'] == '[+10]'))
+    )
+    # Remove invalid rows
+    data = data[~invalid_mask].copy()
+
+    data = cluster_tag(data)
+
+    # Check inconsistencies
+    inconsistencies_flag = data.apply(check_constraint, axis=1)
+    print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
+    violating_rows = data[inconsistencies_flag]
+
+    metadata = get_metadata(data)
+
+    # Create syntetizer and generate new data
+    synthesizer = GaussianCopulaSynthesizer(
+        metadata,
+        locales='it_IT',
+        #    verbose=True
+    )
+    synthesizer.auto_assign_transformers(data)
+    synthesizer.fit(data)
+    synthetic_data = synthesizer.sample(num_rows=1000)
+
+    polarization_list = [
+        [{"Field": "Sex", "Value": "Female", "Percentage": 25},
+         {"Field": "Candidate State", "Value": "Hired", "Percentage": 25}],
+        [{"Field": "Study Title", "Value": "Five-year degree", "Percentage": 10},
+         {"Field": "Assumption Headquarters", "Value": "Milan", "Percentage": 10}]
+    ]
+    x = polarized_generation_from_conditions(synthesizer, polarization_list)
+    # Check inconsistencies in synthetic data
+    inconsistencies_flag = synthetic_data.apply(check_constraint, axis=1)
+    print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
+    violating_rows = synthetic_data[inconsistencies_flag]
+
+    synthesizer = set_constraint(synthesizer)
+
     # Generate data with constraint
     synthesizer.fit(data)
-
-    polarization_dict = {
-        "Sex": {"Value": "Female", "Percentage": 50},
-        "Candidate State": {"Value": "Hired", "Percentage": 20},
-    }
-    polarized_generation(synthesizer, polarization_dict)
     synthetic_data_constraint = synthesizer.sample(num_rows=1000)
-
     # Check inconsistencies in synthetic data with constraint
     inconsistencies_flag = synthetic_data_constraint.apply(check_constraint, axis=1)
     print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
     violating_rows = synthetic_data_constraint[inconsistencies_flag]
-    
-    #nan_cols = list(data.isna().sum().sort_values(ascending=False).index)[:28]
-    #plot_distributions(data, synthetic_data_constraint, metadata, nan_cols)
-    
-    # Comparison between GaussianCopulaSynthesizer and TVAESynthesizer
-    s1 = GaussianCopulaSynthesizer(metadata=metadata, locales='it_IT')
-    s2 = TVAESynthesizer(metadata=metadata, epochs=2)
 
-    compare_synthesizer(s1, s2, metadata, data, num_rows=1000)
+    polarization_list = [
+        [{"Field": "Sex", "Value": "Female", "Percentage": 25}],
+        [{"Field": "Candidate State", "Value": "Hired", "Percentage": 25}],
+    ]
+
+    polarized_generation_from_conditions(synthesizer, polarization_list)
+
+    polarized_generation_from_columns(synthesizer, polarization_list)
 
     print()
