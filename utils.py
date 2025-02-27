@@ -361,3 +361,99 @@ def cluster_tag(data):
         lambda role: map_to_cluster_name(role, unique_last_roles, clusters_last_roles, cluster_names_last_roles))
     data['TAG'] = data['TAG'].apply(lambda tag: map_to_cluster_name(tag, unique_tag, clusters_tags, cluster_names_tags))
     return data
+
+import pandas as pd  
+import random  
+import math 
+from collections import defaultdict  
+def generate_polarized_data(synthesizer, polarization_list, num_rows=1000):
+    """
+    Genera un dataset sintetico con dati polarizzati secondo le specifiche date in polarization_list,
+    assicurandosi che i gruppi non si sovrappongano nei valori assegnati.
+    
+    Args:
+        synthesizer: Un modello generativo che produce dati sintetici.
+        polarization_list: Una lista di liste, dove ogni sottolista contiene dizionari con specifiche di polarizzazione.
+        num_rows: Numero totale di righe da generare nel dataset finale.
+    
+    Returns:
+        final_data: Il dataset finale con dati polarizzati e casuali rimanenti.
+        polarized_synthetic_data: Il sottoinsieme di dati che soddisfano le condizioni di polarizzazione.
+        remaining_synthetic_data: I dati generati senza restrizioni di polarizzazione.
+    """
+    
+    # Genera un dataset sintetico molto più grande del necessario per assicurarsi di avere abbastanza dati da filtrare.
+    initial_synthetic_data = synthesizer.sample(num_rows=num_rows * 100)
+    
+    polarized_data = []  # Lista che conterrà i dati che rispettano le condizioni di polarizzazione.
+    used_values = defaultdict(set)  # Dizionario che traccia i valori usati per evitare sovrapposizioni tra gruppi.
+    total_polarized_rows = 0  # Contatore per il numero totale di righe selezionate secondo le regole di polarizzazione.
+    
+    print("Dimensione iniziale del dataset sintetico:", len(initial_synthetic_data))  # Stampa la dimensione iniziale del dataset generato.
+    
+    # Itera attraverso ogni gruppo di polarizzazione.
+    for sublist in polarization_list:
+        subset_conditions = {}  # Dizionario per memorizzare le condizioni di filtro del sottoinsieme.
+        percentage = sublist[0]['Percentage']  # Percentuale di dati da estrarre per questo gruppo.
+        n_elem = math.floor((num_rows * percentage) / 100)  # Numero di righe da selezionare per questo gruppo.
+        total_polarized_rows += n_elem  # Aggiorna il totale delle righe selezionate finora.
+        
+        # Costruisce il dizionario delle condizioni di selezione (campo -> valore).
+        for el in sublist:
+            subset_conditions[el['Field']] = el['Value']
+        
+        # Esclude i dati che appartengono ad altri gruppi di polarizzazione.
+        condition_df = initial_synthetic_data.copy()
+        for excluded_sublist in polarization_list:
+            if excluded_sublist != sublist:  # Esclude solo gli altri gruppi.
+                for el in excluded_sublist:
+                    field, value = el['Field'], el['Value']
+                    condition_df = condition_df[condition_df[field] != value]  # Filtra i dati eliminando quelli già assegnati.
+        
+        # Filtra il dataset in base alle condizioni specificate per questo gruppo.
+        for field, value in subset_conditions.items():
+            condition_df = condition_df[condition_df[field] == value]
+        
+        print(f"Selezioniamo {n_elem} righe per le condizioni: {subset_conditions}")
+        print(f"Righe disponibili dopo il filtraggio: {len(condition_df)}")
+        
+        # Se il dataset filtrato non ha abbastanza righe per soddisfare la richiesta, genera un errore.
+        if len(condition_df) < n_elem:
+            raise ValueError(f"Errore: dati insufficienti per {subset_conditions}. Disponibili: {len(condition_df)}, richiesti: {n_elem}.")
+        
+        # Campiona casualmente il numero richiesto di righe dal dataset filtrato.
+        selected_data = condition_df.sample(n=n_elem, replace=False)
+        polarized_data.append(selected_data)  # Aggiunge i dati polarizzati alla lista.
+        
+        # Registra i valori usati per evitare sovrapposizioni tra gruppi.
+        for field, value in subset_conditions.items():
+            used_values[field].add(value)
+    
+    # Combina tutti i dati polarizzati in un unico DataFrame.
+    polarized_synthetic_data = pd.concat(polarized_data, ignore_index=True)
+    
+    remaining_data = initial_synthetic_data.copy()
+    
+    # Esclude dal dataset iniziale i dati con attributi già usati nei gruppi polarizzati.
+    for field, values in used_values.items():
+        remaining_data = remaining_data[~remaining_data[field].isin(values)]
+    
+    print("Dimensione del dataset rimanente dopo tutte le esclusioni:", len(remaining_data))
+    
+    # Calcola il numero di righe rimanenti da generare per completare il dataset.
+    num_remaining_rows = num_rows - total_polarized_rows
+    if num_remaining_rows > 0 and not remaining_data.empty:
+        # Se ci sono righe disponibili, seleziona un campione casuale.
+        remaining_synthetic_data = remaining_data.sample(n=num_remaining_rows, replace=False)
+    else:
+        remaining_synthetic_data = pd.DataFrame()  # Se non ci sono dati disponibili, crea un DataFrame vuoto.
+    
+    # Combina i dati polarizzati e quelli rimanenti, poi mescola le righe casualmente.
+    final_data = pd.concat([polarized_synthetic_data, remaining_synthetic_data]).sample(frac=1).reset_index(drop=True)
+    
+    # Controlla se il numero di righe del dataset finale corrisponde a quello richiesto.
+    if len(final_data) != num_rows:
+        print(f"Avviso: il numero totale di righe generate è {len(final_data)}, atteso: {num_rows}.")
+    
+    # Restituisce il dataset finale insieme ai dataset intermedi.
+    return final_data, polarized_synthetic_data, remaining_synthetic_data
