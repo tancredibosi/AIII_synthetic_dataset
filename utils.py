@@ -457,3 +457,115 @@ def generate_polarized_data(synthesizer, polarization_list, num_rows=1000):
     
     # Restituisce il dataset finale insieme ai dataset intermedi.
     return final_data, polarized_synthetic_data, remaining_synthetic_data
+
+
+def generate_polarized_data2(synthesizer, polarization_list, num_rows=1000, max_retries=3, scaling_factor=2):
+    """
+    Genera un dataset sintetico con dati polarizzati secondo le specifiche date in polarization_list,
+    con un meccanismo di retry quando non ci sono abbastanza dati.
+    
+    Args:
+        synthesizer: Un modello generativo che produce dati sintetici.
+        polarization_list: Una lista di liste, dove ogni sottolista contiene dizionari con specifiche di polarizzazione.
+        num_rows: Numero totale di righe da generare nel dataset finale.
+        max_retries: Numero massimo di tentativi per generare dati sufficienti.
+        scaling_factor: Fattore di moltiplicazione per aumentare i dati ad ogni retry.
+    
+    Returns:
+        final_data: Il dataset finale con dati polarizzati e casuali rimanenti.
+        polarized_synthetic_data: Il sottoinsieme di dati che soddisfano le condizioni di polarizzazione.
+        remaining_synthetic_data: I dati generati senza restrizioni di polarizzazione.
+    """
+    
+    initial_multiplier = 100
+    
+    for attempt in range(1, max_retries + 1):
+
+        # Aumenta la dimensione del dataset ad ogni tentativo
+        current_multiplier = initial_multiplier * (scaling_factor ** (attempt - 1))
+        print(f"Tentativo {attempt}/{max_retries}: Generazione di {num_rows * current_multiplier} righe...")
+
+        try:
+            # Genera un dataset sintetico più grande del necessario
+            initial_synthetic_data = synthesizer.sample(num_rows=num_rows * current_multiplier)
+            
+            polarized_data = []  # Lista che conterrà i dati che rispettano le condizioni di polarizzazione
+            used_values = defaultdict(set)  # Traccia i valori usati per evitare sovrapposizioni
+            total_polarized_rows = 0  # Contatore per il numero totale di righe polarizzate
+            
+            print(f"Dimensione dataset generato: {len(initial_synthetic_data)} righe")
+            
+            # Itera attraverso ogni gruppo di polarizzazione
+            for sublist in polarization_list:
+                subset_conditions = {}  # Condizioni di filtro
+                percentage = sublist[0]['Percentage']  # Percentuale target
+                n_elem = math.floor((num_rows * percentage) / 100)  # Righe da selezionare
+                total_polarized_rows += n_elem
+                
+                # Costruisce il dizionario delle condizioni
+                for el in sublist:
+                    subset_conditions[el['Field']] = el['Value']
+                
+                # Esclude i dati che appartengono ad altri gruppi
+                condition_df = initial_synthetic_data.copy()
+                for excluded_sublist in polarization_list:
+                    if excluded_sublist != sublist:
+                        for el in excluded_sublist:
+                            field, value = el['Field'], el['Value']
+                            condition_df = condition_df[condition_df[field] != value]
+                
+                # Filtra il dataset per le condizioni specificate
+                for field, value in subset_conditions.items():
+                    condition_df = condition_df[condition_df[field] == value]
+                
+                print(f"Condizioni: {subset_conditions} - Righe richieste: {n_elem} - Disponibili: {len(condition_df)}")
+                
+                # Verifica disponibilità dati
+                if len(condition_df) < n_elem:
+                    raise ValueError(f"Dati insufficienti per {subset_conditions}. Disponibili: {len(condition_df)}, richiesti: {n_elem}.")
+                
+                # Campiona le righe richieste
+                selected_data = condition_df.sample(n=n_elem, replace=False)
+                polarized_data.append(selected_data)
+                
+                # Registra i valori usati
+                for field, value in subset_conditions.items():
+                    used_values[field].add(value)
+            
+            # Combina i dati polarizzati
+            polarized_synthetic_data = pd.concat(polarized_data, ignore_index=True)
+            
+            # Prepara i dati rimanenti
+            remaining_data = initial_synthetic_data.copy()
+            for field, values in used_values.items():
+                remaining_data = remaining_data[~remaining_data[field].isin(values)]
+            
+            print(f"Dataset rimanente: {len(remaining_data)} righe")
+            
+            # Calcola righe rimanenti da aggiungere
+            num_remaining_rows = num_rows - total_polarized_rows
+            if num_remaining_rows > 0 and not remaining_data.empty:
+                # Se non ci sono abbastanza righe rimanenti, prendi quelle disponibili
+                if len(remaining_data) < num_remaining_rows:
+                    print(f"Avviso: solo {len(remaining_data)} righe rimanenti disponibili, richieste {num_remaining_rows}")
+                    remaining_synthetic_data = remaining_data
+                else:
+                    remaining_synthetic_data = remaining_data.sample(n=num_remaining_rows, replace=False)
+            else:
+                remaining_synthetic_data = pd.DataFrame()
+            
+            # Combina e mescola i dati
+            final_data = pd.concat([polarized_synthetic_data, remaining_synthetic_data]).sample(frac=1).reset_index(drop=True)
+            
+            print(f"Dataset finale generato: {len(final_data)} righe (attese: {num_rows})")
+            print()
+
+            return final_data, polarized_synthetic_data, remaining_synthetic_data
+            
+        except ValueError as e:
+            if attempt < max_retries:
+                print(f"\n{Fore.YELLOW}Errore: {str(e)}")
+                print(f"Nuovo tentativo ({attempt+1}/{max_retries}) con più dati...{Style.RESET_ALL}\n")
+            else:
+                print(f"\n{Fore.RED}Errore dopo {max_retries} tentativi: {str(e)}{Style.RESET_ALL}\n")
+                raise
