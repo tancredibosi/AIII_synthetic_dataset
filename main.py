@@ -113,13 +113,6 @@ if __name__ == '__main__':
     synthesizer.fit(data)
     synthetic_data = synthesizer.sample(num_rows=1000)
 
-    polarization_list = [
-        [{"Field": "Sex", "Value": "Female", "Percentage": 25},
-         {"Field": "Candidate State", "Value": "Hired", "Percentage": 25}],
-        [{"Field": "Study Title", "Value": "Five-year degree", "Percentage": 10},
-         {"Field": "Assumption Headquarters", "Value": "Milan", "Percentage": 10}]
-    ]
-    x = polarized_generation_from_conditions(synthesizer, polarization_list)
     # Check inconsistencies in synthetic data
     inconsistencies_flag = synthetic_data.apply(check_constraint, axis=1)
     print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
@@ -135,13 +128,22 @@ if __name__ == '__main__':
     print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
     violating_rows = synthetic_data_constraint[inconsistencies_flag]
 
-    polarization_list = [
+    # Generate polarized data
+    print(f"\n{Fore.RED}Generating polarized data {Style.RESET_ALL}")
+
+    polarization_list1 = [
         [{"Field": "Sex", "Value": "Female", "Percentage": 25}],
         [{"Field": "Candidate State", "Value": "Hired", "Percentage": 25}],
     ]
 
-    polarized_generation_from_conditions(synthesizer, polarization_list)
+    final_data1, polarized_data1, remaining_synthetic_data1 = generate_polarized_data(synthesizer, polarization_list1, 1000, 3, 2)
 
-    polarized_generation_from_columns(synthesizer, polarization_list)
+    polarization_list2 = [
+        [{"Field": "Sex", "Value": "Female", "Percentage": 25},
+         {"Field": "Candidate State", "Value": "Hired", "Percentage": 25}],
+        [{"Field": "Study Title", "Value": "Five-year degree", "Percentage": 10},
+         {"Field": "Assumption Headquarters", "Value": "Milan", "Percentage": 10}]
+    ]
 
+    final_data2, polarized_data2, remaining_synthetic_data2 = generate_polarized_data(synthesizer, polarization_list2, 1000, 3, 2)
     print()
