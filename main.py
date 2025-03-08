@@ -82,6 +82,14 @@ def set_constraint(synthesizer):
     return synthesizer
 
 
+"""
+To discuss:
+- How data cleaning? Why that data cleaning?
+- How Synthesizer works? Why that Synthesizer? -> Show comparision between time to train and performance of the 3 synthesizer
+- How applied constraint? Why need for a Custom one?
+- How polarized data? Why need to use custom function?
+"""
+
 if __name__ == '__main__':
     # Import data and clean
     file_path = 'Dataset_2.0_Akkodis.xlsx'
