@@ -87,7 +87,21 @@ def filter_dataframe_by_constraints(df, constraints_list, total_rows):
     return final_df.reset_index(drop=True)
 
 
-def polarized_generation_from_conditions(synthesizer, polarization_list, num_rows=1000, scaling_factor=2, max_retries=3):
+def polarized_generation_from_conditions(synthesizer, polarization_list, num_rows=1000, scaling_factor=2,
+                                         max_retries=3):
+    """
+    Generates synthetic data by applying a set of conditions from the polarization_list and retries if an error occurs.
+
+    Parameters:
+        synthesizer: The data synthesizer used to generate synthetic data.
+        polarization_list (list): List containing sets of conditions to apply to the generated data.
+        num_rows (int): The number of rows to generate (default is 1000).
+        scaling_factor (int): Factor to scale the number of rows on retries (default is 2).
+        max_retries (int): Maximum number of retries in case of errors (default is 3).
+
+    Returns:
+        pd.DataFrame: Generated synthetic data with the required constraints applied.
+    """
     synthetic_data_list = []
 
     retries = 0
@@ -120,7 +134,8 @@ def polarized_generation_from_conditions(synthesizer, polarization_list, num_row
         except Exception as e:
             retries += 1
             scaling_factor *= 2  # Increase scaling factor on retry
-            print(f"{Fore.YELLOW}Retry {retries}/{max_retries}: Increasing scaling factor to {scaling_factor} due to error: {e}{Style.RESET_ALL}")
+            print(
+                f"{Fore.YELLOW}Retry {retries}/{max_retries}: Increasing scaling factor to {scaling_factor} due to error: {e}{Style.RESET_ALL}")
             time.sleep(1)
             if retries == max_retries:
                 raise RuntimeError("Max retries reached. Unable to generate valid polarized synthetic data.")
@@ -131,12 +146,13 @@ def polarized_generation_from_conditions(synthesizer, polarization_list, num_row
         try:
             synthetic_data = synthesizer.sample(num_rows=num_rows * scaling_factor)
             filtered_synthetic_data = exclude_matching_rows(synthetic_data, polarization_list)
-            fill_values = filtered_synthetic_data.sample(n=num_rows-tot_rows)
+            fill_values = filtered_synthetic_data.sample(n=num_rows - tot_rows)
             break
         except Exception as e:
             retries += 1
             scaling_factor *= 2  # Increase scaling factor on retry
-            print(f"{Fore.YELLOW}Retry {retries}/{max_retries}: Increasing scaling factor to {scaling_factor} due to error: {e}{Style.RESET_ALL}")
+            print(
+                f"{Fore.YELLOW}Retry {retries}/{max_retries}: Increasing scaling factor to {scaling_factor} due to error: {e}{Style.RESET_ALL}")
             time.sleep(1)
             if retries == max_retries:
                 raise RuntimeError("Max retries reached. Unable to generate valid polarized synthetic data.")
@@ -146,7 +162,18 @@ def polarized_generation_from_conditions(synthesizer, polarization_list, num_row
 
 
 def polarized_generation_from_columns(synthesizer, polarization_list, num_rows=1000):
-    synthetic_data = synthesizer.sample(num_rows=num_rows*5)
+    """
+    Generates synthetic data by applying column-based polarization conditions to the synthesizer's samples.
+
+    Parameters:
+        synthesizer: The data synthesizer used to generate synthetic data.
+        polarization_list (list): List containing conditions based on column values for polarization.
+        num_rows (int): The number of rows to generate (default is 1000).
+
+    Returns:
+        pd.DataFrame: Generated synthetic data with polarized column conditions applied.
+    """
+    synthetic_data = synthesizer.sample(num_rows=num_rows * 5)
 
     reference_data = pd.DataFrame()
     for sublist in polarization_list:
@@ -163,8 +190,9 @@ def polarized_generation_from_columns(synthesizer, polarization_list, num_rows=1
             new_rows = pd.concat([new_rows, polarized_rows], axis=1).reset_index(drop=True)
             prev_percentage = el['Percentage']
 
-        mask = ~synthetic_data.apply(lambda row: all(row[col] == val for col, val in exclude_conditions.items()), axis=1)
-        fill_values = synthetic_data[mask].sample(n=num_rows-n_elem)
+        mask = ~synthetic_data.apply(lambda row: all(row[col] == val for col, val in exclude_conditions.items()),
+                                     axis=1)
+        fill_values = synthetic_data[mask].sample(n=num_rows - n_elem)
         new_rows = pd.concat([new_rows, fill_values[new_rows.columns]]).reset_index(drop=True)
         reference_data = pd.concat([reference_data, new_rows], axis=1).reset_index(drop=True)
         reference_data = reference_data.sample(frac=1).reset_index(drop=True)
@@ -178,24 +206,42 @@ def polarized_generation_from_columns(synthesizer, polarization_list, num_rows=1
 
 
 def compare_synthesizer(s1, s2, metadata, data, num_rows=1000):
+    """
+    Compares the performance of two synthesizers by evaluating the diagnostics and quality of the synthetic data generated.
+
+    Parameters:
+        s1: The first synthesizer to compare.
+        s2: The second synthesizer to compare.
+        metadata: Metadata associated with the data (e.g., column types, data distributions).
+        data: The original data to use for comparison.
+        num_rows (int): The number of rows to generate for each synthesizer (default is 1000).
+
+    Returns:
+        None: Displays a plot comparing the diagnostic and quality scores of both synthesizers.
+    """
     s1.fit(data)
     s2.fit(data)
-    
+
     synthetic_data_s1 = s1.sample(num_rows=num_rows)
     synthetic_data_s2 = s2.sample(num_rows=num_rows)
-    
+
+    # Run diagnostics and quality evaluation for the first synthesizer
     diagnostic_report_s1 = run_diagnostic(data, synthetic_data_s1, metadata, verbose=False)
-    drs1_dict = dict(zip(diagnostic_report_s1.get_properties()['Property'], diagnostic_report_s1.get_properties()['Score']))
-    
+    drs1_dict = dict(
+        zip(diagnostic_report_s1.get_properties()['Property'], diagnostic_report_s1.get_properties()['Score']))
+
     quality_report_s1 = evaluate_quality(data, synthetic_data_s1, metadata, verbose=False)
     dqs1_dict = dict(zip(quality_report_s1.get_properties()['Property'], quality_report_s1.get_properties()['Score']))
-    
+
+    # Run diagnostics and quality evaluation for the second synthesizer
     diagnostic_report_s2 = run_diagnostic(data, synthetic_data_s2, metadata, verbose=False)
-    drs2_dict = dict(zip(diagnostic_report_s2.get_properties()['Property'], diagnostic_report_s2.get_properties()['Score']))
-    
+    drs2_dict = dict(
+        zip(diagnostic_report_s2.get_properties()['Property'], diagnostic_report_s2.get_properties()['Score']))
+
     quality_report_s2 = evaluate_quality(data, synthetic_data_s2, metadata, verbose=False)
     dqs2_dict = dict(zip(quality_report_s2.get_properties()['Property'], quality_report_s2.get_properties()['Score']))
-    
-    plot_comparison_subplots(drs1_dict, drs2_dict, dqs1_dict, dqs2_dict, 
+
+    # Plot comparison between both synthesizers
+    plot_comparison_subplots(drs1_dict, drs2_dict, dqs1_dict, dqs2_dict,
                              dict1_name=f"{s1.__class__.__name__}",
                              dict2_name=f"{s2.__class__.__name__}")
