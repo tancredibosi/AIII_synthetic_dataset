@@ -1,8 +1,13 @@
-import pandas as pd
 from sdv.metadata import Metadata
 from sdv.single_table import GaussianCopulaSynthesizer, TVAESynthesizer
-from colorama import Fore, Style
+import warnings
+
 from utils import *
+from data_plots_utils import *
+from data_preprocess_utils import *
+from data_check_utils import *
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
 def get_metadata(data):
@@ -96,14 +101,15 @@ if __name__ == '__main__':
 
     data = cluster_tag(data)
 
-    # Check inconsistencies
+    # Check inconsistencies in the original data
     inconsistencies_flag = data.apply(check_constraint, axis=1)
     print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
+    time.sleep(1)
     violating_rows = data[inconsistencies_flag]
 
+    # Initialize synthesizer
     metadata = get_metadata(data)
-
-    # Create syntetizer and generate new data
+    # Create synthesizer and generate new data
     synthesizer = GaussianCopulaSynthesizer(
         metadata,
         locales='it_IT',
@@ -111,11 +117,15 @@ if __name__ == '__main__':
     )
     synthesizer.auto_assign_transformers(data)
     synthesizer.fit(data)
+
+    # Generate datas wihtout constraint
     synthetic_data = synthesizer.sample(num_rows=1000)
+    time.sleep(1)
 
     # Check inconsistencies in synthetic data
     inconsistencies_flag = synthetic_data.apply(check_constraint, axis=1)
     print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
+    time.sleep(1)
     violating_rows = synthetic_data[inconsistencies_flag]
 
     synthesizer = set_constraint(synthesizer)
@@ -123,9 +133,11 @@ if __name__ == '__main__':
     # Generate data with constraint
     synthesizer.fit(data)
     synthetic_data_constraint = synthesizer.sample(num_rows=1000)
+
     # Check inconsistencies in synthetic data with constraint
     inconsistencies_flag = synthetic_data_constraint.apply(check_constraint, axis=1)
     print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
+    time.sleep(1)
     violating_rows = synthetic_data_constraint[inconsistencies_flag]
 
     # Generate polarized data
@@ -135,7 +147,6 @@ if __name__ == '__main__':
         [{"Field": "Sex", "Value": "Female", "Percentage": 25}],
         [{"Field": "Candidate State", "Value": "Hired", "Percentage": 25}],
     ]
-
     final_data1 = polarized_generation_from_conditions(synthesizer, polarization_list1, num_rows=1000)
     check_distribution_constraints(final_data1, polarization_list1)
 
@@ -145,7 +156,6 @@ if __name__ == '__main__':
         [{"Field": "Study Title", "Value": "Five-year degree", "Percentage": 10},
          {"Field": "Assumption Headquarters", "Value": "Milan", "Percentage": 10}]
     ]
-
     final_data2 = polarized_generation_from_conditions(synthesizer, polarization_list2, num_rows=1000)
     check_distribution_constraints(final_data2, polarization_list2)
     print()
