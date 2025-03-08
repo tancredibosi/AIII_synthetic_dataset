@@ -54,6 +54,17 @@ def preprocess_text(text):
     return text.lower()
 
 
+def filter_minor_workers(data):
+    # Clean data from inconsistencies
+    invalid_mask = (
+            ((data['Age Range'] == '< 20 years') &
+             (data['Years Experience'].isin(['[+10]', '[7-10]', '[5-7]', '[3-5]']))) |
+            ((data['Age Range'] == '20 - 25 years') &
+             (data['Years Experience'] == '[+10]'))
+    )
+    # Remove invalid rows
+    return data[~invalid_mask].copy()
+
 def cluster_and_map_roles(unique_values):
     processed_values = [preprocess_text(value) for value in unique_values]
 

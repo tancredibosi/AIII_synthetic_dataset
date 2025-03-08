@@ -95,29 +95,20 @@ if __name__ == '__main__':
     file_path = 'Dataset_2.0_Akkodis.xlsx'
     # Import the dataset into a pandas DataFrame
     original_data = pd.read_excel(file_path)
+
+    # Apply pre-processing
     data = organize_data(original_data)
-
-    # Clean data from inconsistencies
-    invalid_mask = (
-            ((data['Age Range'] == '< 20 years') &
-             (data['Years Experience'].isin(['[+10]', '[7-10]', '[5-7]', '[3-5]']))) |
-            ((data['Age Range'] == '20 - 25 years') &
-             (data['Years Experience'] == '[+10]'))
-    )
-    # Remove invalid rows
-    data = data[~invalid_mask].copy()
-
+    data = filter_minor_workers(data)
     data = cluster_tag(data)
 
     # Check inconsistencies in the original data
     inconsistencies_flag = data.apply(check_constraint, axis=1)
-    print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
+    print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL} in original data")
     time.sleep(1)
     violating_rows = data[inconsistencies_flag]
 
     # Initialize synthesizer
     metadata = get_metadata(data)
-    # Create synthesizer and generate new data
     synthesizer = GaussianCopulaSynthesizer(
         metadata,
         locales='it_IT',
@@ -126,13 +117,13 @@ if __name__ == '__main__':
     synthesizer.auto_assign_transformers(data)
     synthesizer.fit(data)
 
-    # Generate datas wihtout constraint
+    # Generate datas without constraint
     synthetic_data = synthesizer.sample(num_rows=1000)
     time.sleep(1)
 
     # Check inconsistencies in synthetic data
     inconsistencies_flag = synthetic_data.apply(check_constraint, axis=1)
-    print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
+    print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL} in synthesized data")
     time.sleep(1)
     violating_rows = synthetic_data[inconsistencies_flag]
 
@@ -144,26 +135,26 @@ if __name__ == '__main__':
 
     # Check inconsistencies in synthetic data with constraint
     inconsistencies_flag = synthetic_data_constraint.apply(check_constraint, axis=1)
-    print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL}")
+    print(f"{Fore.GREEN}Found: {inconsistencies_flag.sum()} inconsistencies {Style.RESET_ALL} in synthesized data")
     time.sleep(1)
     violating_rows = synthetic_data_constraint[inconsistencies_flag]
 
     # Generate polarized data
     print(f"\n{Fore.RED}Generating polarized data {Style.RESET_ALL}")
 
-    polarization_list1 = [
+    polarization_list = [
         [{"Field": "Sex", "Value": "Female", "Percentage": 25}],
         [{"Field": "Candidate State", "Value": "Hired", "Percentage": 25}],
     ]
-    final_data1 = polarized_generation_from_conditions(synthesizer, polarization_list1, num_rows=1000)
-    check_distribution_constraints(final_data1, polarization_list1)
+    final_data = polarized_generation_from_conditions(synthesizer, polarization_list, num_rows=1000)
+    check_distribution_constraints(final_data, polarization_list)
 
-    polarization_list2 = [
+    polarization_list = [
         [{"Field": "Sex", "Value": "Female", "Percentage": 25},
          {"Field": "Candidate State", "Value": "Hired", "Percentage": 25}],
         [{"Field": "Study Title", "Value": "Five-year degree", "Percentage": 10},
          {"Field": "Assumption Headquarters", "Value": "Milan", "Percentage": 10}]
     ]
-    final_data2 = polarized_generation_from_conditions(synthesizer, polarization_list2, num_rows=1000)
-    check_distribution_constraints(final_data2, polarization_list2)
+    final_data = polarized_generation_from_conditions(synthesizer, polarization_list, num_rows=1000)
+    check_distribution_constraints(final_data, polarization_list)
     print()
