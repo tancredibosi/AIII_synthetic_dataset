@@ -161,40 +161,101 @@ def plot_distributions(data, synthetic_data, metadata, columns_to_plot):
         fig.show()
 
 
-def polarized_generation_from_conditions(synthesizer, polarization_list, num_rows=1000):
-    # TODO: change this generation with something more elegant
-    synthetic_data = synthesizer.sample(num_rows=num_rows * 5)
-    filtered_synthetic_data = filter_dataframe(synthetic_data, polarization_list)
+def polarized_generation_from_conditions(synthesizer, polarization_list, num_rows=1000, scaling_factor=2, max_retries=3):
+    synthetic_data_list = []
 
-    conditions = []
-    tot_rows = 0
-    for sublist in polarization_list:
-        n_elem = (num_rows * sublist[0]['Percentage']) // 100
-        tot_rows += n_elem
-        prev_percentage = None
-        col_values = {}
-        for el in sublist:
-            if prev_percentage and prev_percentage != el['Percentage']:
-                raise ValueError("Error: Mismatched percentages")
-            col_values[el['Field']] = el['Value']
+    retries = 0
+    while retries < max_retries:
+        try:
+            tot_rows = 0
+            for sublist in polarization_list:
+                n_elem = (num_rows * sublist[0]['Percentage']) // 100
+                tot_rows += n_elem
+                prev_percentage = None
+                col_values = {}
+                for el in sublist:
+                    if prev_percentage and prev_percentage != el['Percentage']:
+                        raise ValueError("Error: Mismatched percentages")
+                    col_values[el['Field']] = el['Value']
 
-        conditions.append(
-            Condition(
-                num_rows=n_elem,
-                column_values=col_values
-            )
-        )
+                condition = Condition(
+                    num_rows=n_elem * scaling_factor,
+                    column_values=col_values
+                )
+                polarized_synthetic_data = synthesizer.sample_from_conditions(
+                    conditions=[condition],
+                )
+                synthetic_data_list.append(polarized_synthetic_data)
 
-    polarized_synthetic_data = synthesizer.sample_from_conditions(
-        conditions=conditions,
-    )
-    fill_values = filtered_synthetic_data.sample(n=num_rows-tot_rows)
-    final_data = pd.concat([polarized_synthetic_data, fill_values]).reset_index(drop=True)
+            # Combine all generated synthetic data
+            all_polarized_data = pd.concat(synthetic_data_list).reset_index(drop=True)
+            filtered_polarized_data = filter_by_constraints(all_polarized_data, polarization_list, num_rows)
+            break
+        except Exception as e:
+            retries += 1
+            scaling_factor *= 2  # Increase scaling factor on retry
+            print(f"Retry {retries}/{max_retries}: Increasing scaling factor to {scaling_factor} due to error: {e}")
+            if retries == max_retries:
+                raise RuntimeError("Max retries reached. Unable to generate valid polarized synthetic data.")
+
+    scaling_factor = 3
+    retries = 0
+    while retries < max_retries:
+        try:
+            synthetic_data = synthesizer.sample(num_rows=num_rows * scaling_factor)
+            filtered_synthetic_data = filter_dataframe(synthetic_data, polarization_list)
+            fill_values = filtered_synthetic_data.sample(n=num_rows-tot_rows)
+            break
+        except Exception as e:
+            retries += 1
+            scaling_factor *= 2  # Increase scaling factor on retry
+            print(f"Retry {retries}/{max_retries}: Increasing scaling factor to {scaling_factor} due to error: {e}")
+            if retries == max_retries:
+                raise RuntimeError("Max retries reached. Unable to generate valid polarized synthetic data.")
+
+    final_data = pd.concat([filtered_polarized_data, fill_values]).reset_index(drop=True)
     return final_data
 
 
+def filter_by_constraints(df, polarization_list, num_rows):
+    final_df = pd.DataFrame()  # Create an empty DataFrame to store results
+    used_indices = set()  # To track already used rows and avoid conflicts
+
+    for i, constraint_group in enumerate(polarization_list):
+        temp_df = df.copy()
+
+        # Exclude rows that match constraints from other groups
+        for j, other_group in enumerate(polarization_list):
+            if i != j:  # Only consider other groups
+                for constraint in other_group:
+                    field, value = constraint["Field"], constraint["Value"]
+                    temp_df = temp_df[temp_df[field] != value]  # Exclude matching rows
+
+        # Now apply the current constraint group
+        for constraint in constraint_group:
+            field, value = constraint["Field"], constraint["Value"]
+            num_elem = (num_rows * constraint['Percentage']) // 100
+            temp_df = temp_df[temp_df[field] == value]  # Apply filter
+
+        # Remove already used rows to prevent conflicts
+        temp_df = temp_df.loc[~temp_df.index.isin(used_indices)]
+
+        # Ensure the result matches the required Num_elem
+        if len(temp_df) >= num_elem:
+            temp_df = temp_df.head(num_elem)  # Take only required rows
+        else:
+            raise ValueError(f"Not enough rows for constraints {constraint_group}, missing {num_elem - len(temp_df)} elements")
+
+        # Update used indices to avoid conflicts
+        used_indices.update(temp_df.index)
+
+        # Append results to final DataFrame
+        final_df = pd.concat([final_df, temp_df])
+
+    return final_df.reset_index(drop=True)
+
+
 def polarized_generation_from_columns(synthesizer, polarization_list, num_rows=1000):
-    # TODO: change this generation with something more elegant
     synthetic_data = synthesizer.sample(num_rows=num_rows*5)
 
     reference_data = pd.DataFrame()
@@ -372,43 +433,43 @@ def process_data_polarization(synthesizer, polarization_list, num_rows, scaling_
     """
     current_multiplier = 100 * (scaling_factor ** (attempt - 1))
     total_rows = num_rows * current_multiplier
-    
+
     print(f"\nTentativo {attempt}: Generazione di {total_rows} righe...")
     initial_data = synthesizer.sample(num_rows=total_rows)
-    
+
     polarized_data = []
     used_values = defaultdict(set)
     total_polarized_rows = 0
-    
+
     for sublist in polarization_list:
         subset_conditions = {el['Field']: el['Value'] for el in sublist}
         percentage = sublist[0]['Percentage']
         n_elem = math.floor((num_rows * percentage) / 100)
         total_polarized_rows += n_elem
-        
+
         condition_df = initial_data.copy()
-        
+
         # Exclude data belonging to other polarization groups
         for excluded_sublist in polarization_list:
             if excluded_sublist != sublist:
                 for el in excluded_sublist:
                     condition_df = condition_df[condition_df[el['Field']] != el['Value']]
-        
+
         # Apply filtering conditions
         for field, value in subset_conditions.items():
             condition_df = condition_df[condition_df[field] == value]
-        
+
         print(f"Condizioni: {subset_conditions} - Righe richieste: {n_elem} - Disponibili: {len(condition_df)}")
-        
+
         if len(condition_df) < n_elem:
             raise ValueError(f"Dati insufficienti per {subset_conditions}. Disponibili: {len(condition_df)}, richiesti: {n_elem}.")
-        
+
         selected_data = condition_df.sample(n=n_elem, replace=False)
         polarized_data.append(selected_data)
-        
+
         for field, value in subset_conditions.items():
             used_values[field].add(value)
-    
+
     polarized_synthetic_data = pd.concat(polarized_data, ignore_index=True)
     return initial_data, polarized_synthetic_data, used_values, total_polarized_rows
 
@@ -422,16 +483,16 @@ def generate_polarized_data(synthesizer, polarization_list, num_rows=1000, max_r
             initial_data, polarized_data, used_values, total_polarized_rows = process_data_polarization(
                 synthesizer, polarization_list, num_rows, scaling_factor, attempt
             )
-            
+
             remaining_data = initial_data.copy()
             for field, values in used_values.items():
                 remaining_data = remaining_data[~remaining_data[field].isin(values)]
-            
+
             num_remaining_rows = num_rows - total_polarized_rows
             remaining_synthetic_data = remaining_data.sample(n=num_remaining_rows, replace=False) if num_remaining_rows > 0 else pd.DataFrame()
-            
+
             final_data = pd.concat([polarized_data, remaining_synthetic_data]).sample(frac=1).reset_index(drop=True)
-            
+
             print(f"Dataset finale generato: {len(final_data)} righe (attese: {num_rows})")
             return final_data, polarized_data, remaining_synthetic_data
 

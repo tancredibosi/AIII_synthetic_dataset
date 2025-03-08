@@ -136,7 +136,8 @@ if __name__ == '__main__':
         [{"Field": "Candidate State", "Value": "Hired", "Percentage": 25}],
     ]
 
-    final_data1, polarized_data1, remaining_synthetic_data1 = generate_polarized_data(synthesizer, polarization_list1, 1000, 3, 2)
+    final_data1 = polarized_generation_from_conditions(synthesizer, polarization_list1, num_rows=1000)
+    check_distribution_constraints(final_data1, polarization_list1)
 
     polarization_list2 = [
         [{"Field": "Sex", "Value": "Female", "Percentage": 25},
@@ -145,5 +146,6 @@ if __name__ == '__main__':
          {"Field": "Assumption Headquarters", "Value": "Milan", "Percentage": 10}]
     ]
 
-    final_data2, polarized_data2, remaining_synthetic_data2 = generate_polarized_data(synthesizer, polarization_list2, 1000, 3, 2)
+    final_data2 = polarized_generation_from_conditions(synthesizer, polarization_list2, num_rows=1000)
+    check_distribution_constraints(final_data2, polarization_list2)
     print()
