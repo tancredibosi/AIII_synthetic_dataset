@@ -8,8 +8,6 @@ This project focuses on generating synthetic HR data while maintaining statistic
 - **Constraints**: Implements constraints to have data validity
 - **Synthetic Data Generation**: Uses Gaussian Copula synthesizer
 - **Data Polarization**: Generates data with specific distribution requirements
-- **Quality Evaluation**: Compares synthetic data quality against original
-- **Visualization**: Provides comparison plots between different synthesizers
 
 ## Key Components
 
@@ -26,10 +24,5 @@ Implements business rules:
 
 ### 3. Data Generation (`main.py`)
 - Uses Gaussian Copula synthesizer
-- Applies custom constraints
+- Applies predefined and custom constraints
 - Generates polarized data with specific distributions
-
-### 4. Quality Evaluation (`utils.py`)
-- Compares synthetic data against original
-- Provides diagnostic and quality scores
-- Visualizes comparison between different synthesizers
