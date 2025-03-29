@@ -33,9 +33,3 @@ Implements business rules:
 - Compares synthetic data against original
 - Provides diagnostic and quality scores
 - Visualizes comparison between different synthesizers
-
-## Usage
-
-1. **Install dependencies**:
-   ```bash
-   pip install pandas sdv scikit-learn matplotlib colorama
